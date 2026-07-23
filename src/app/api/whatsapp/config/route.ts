@@ -185,13 +185,43 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { phone_number_id, waba_id, access_token, verify_token, pin } = body
+    let { phone_number_id, waba_id, access_token, verify_token, pin } = body
 
-    if (!access_token || !phone_number_id) {
+    if (!phone_number_id) {
       return NextResponse.json(
-        { error: 'access_token and phone_number_id are required' },
+        { error: 'phone_number_id is required' },
         { status: 400 }
       )
+    }
+
+    // Look up any pre-existing row early so we can reuse the stored
+    // access_token when the user didn't supply one (e.g. they're only
+    // updating the verify_token or PIN).
+    const { data: existing } = await supabase
+      .from('whatsapp_config')
+      .select('id, registered_at, phone_number_id, access_token')
+      .eq('account_id', accountId)
+      .maybeSingle()
+
+    if (!access_token) {
+      if (existing?.access_token) {
+        try {
+          access_token = decrypt(existing.access_token)
+        } catch {
+          return NextResponse.json(
+            {
+              error:
+                'The stored access token could not be decrypted. Please re-enter it manually to save changes.',
+            },
+            { status: 400 },
+          )
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'access_token is required for initial setup' },
+          { status: 400 }
+        )
+      }
     }
 
     if (pin !== undefined && pin !== null && pin !== '') {
@@ -268,15 +298,6 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
-
-    // Look up any pre-existing row for this account so we know whether
-    // this number is already registered with Meta — if so we can skip
-    // /register when the user didn't provide a PIN this time around.
-    const { data: existing } = await supabase
-      .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id')
-      .eq('account_id', accountId)
-      .maybeSingle()
 
     const sameNumber =
       existing?.phone_number_id === phone_number_id &&
