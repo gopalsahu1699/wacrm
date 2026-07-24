@@ -110,8 +110,9 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
       matched.map(automation => executeAutomation(automation, input))
     )
     for (let i = 0; i < settleResults.length; i++) {
-      if (settleResults[i].status === 'rejected') {
-        console.error('[automations] execute failed:', matched[i].id, settleResults[i].reason)
+      const r = settleResults[i]
+      if (r.status === 'rejected') {
+        console.error('[automations] execute failed:', matched[i].id, r.reason)
       }
     }
   } catch (err) {
