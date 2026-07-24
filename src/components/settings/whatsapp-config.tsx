@@ -30,6 +30,7 @@ import {
   AccordionContent,
 } from '@/components/ui/accordion';
 import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
+import type { MetaPhoneInfo } from '@/lib/whatsapp/meta-api';
 
 const MASKED_TOKEN = '••••••••••••••••';
 
@@ -55,6 +56,7 @@ export function WhatsAppConfig() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('unknown');
   const [resetReason, setResetReason] = useState<ResetReason>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [phoneInfo, setPhoneInfo] = useState<MetaPhoneInfo | null>(null);
   // Guards against re-hydrating the form when the load effect below
   // re-runs for reasons unrelated to actually switching accounts —
   // e.g. Supabase's onAuthStateChange fires a token refresh (new
@@ -143,14 +145,17 @@ export function WhatsAppConfig() {
             setConnectionStatus('connected');
             setResetReason(null);
             setStatusMessage('');
+            setPhoneInfo(payload.phone_info ?? null);
           } else {
             setConnectionStatus('disconnected');
             setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
             setStatusMessage(payload.message || '');
+            setPhoneInfo(null);
           }
         } catch (err) {
           console.error('Health check failed:', err);
           setConnectionStatus('disconnected');
+          setPhoneInfo(null);
         }
       } else {
         setConnectionStatus('disconnected');
@@ -285,6 +290,7 @@ export function WhatsAppConfig() {
         setConnectionStatus('connected');
         setResetReason(null);
         setStatusMessage('');
+        setPhoneInfo(payload.phone_info ?? null);
         toast.success(
           payload.phone_info?.verified_name
             ? `Connected to ${payload.phone_info.verified_name}`
@@ -294,6 +300,7 @@ export function WhatsAppConfig() {
         setConnectionStatus('disconnected');
         setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
         setStatusMessage(payload.message || '');
+        setPhoneInfo(null);
         toast.error(payload.message || 'API connection failed');
       }
     } catch (err) {
@@ -356,6 +363,7 @@ export function WhatsAppConfig() {
       setConnectionStatus('disconnected');
       setResetReason(null);
       setStatusMessage('');
+      setPhoneInfo(null);
     } catch (err) {
       console.error('Reset error:', err);
       toast.error('Failed to reset configuration');
@@ -442,10 +450,21 @@ export function WhatsAppConfig() {
             </AlertTitle>
           </div>
           <AlertDescription className="text-muted-foreground">
-            {connectionStatus === 'connected'
-              ? t('connectedDesc')
-              : statusMessage ||
-                t('notConnectedDesc')}
+            {connectionStatus === 'connected' && phoneInfo ? (
+              <>
+                {phoneInfo.verified_name && (
+                  <span className="font-medium text-foreground">{phoneInfo.verified_name}</span>
+                )}
+                {phoneInfo.verified_name && phoneInfo.display_phone_number && <span> &middot; </span>}
+                {phoneInfo.display_phone_number && (
+                  <span>{phoneInfo.display_phone_number}</span>
+                )}
+              </>
+            ) : connectionStatus === 'connected' ? (
+              t('connectedDesc')
+            ) : (
+              statusMessage || t('notConnectedDesc')
+            )}
           </AlertDescription>
         </Alert>
 
