@@ -37,13 +37,12 @@ export async function GET(request: Request) {
     .eq('status', 'pending')
     .lte('run_at', new Date().toISOString())
     .order('run_at', { ascending: true })
-    .limit(50)
+    .limit(200)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
 
-  let processed = 0
-  for (const row of due) {
+  const resumes = due.map(async (row) => {
     const { data: claim } = await admin
       .from('automation_pending_executions')
       .update({ status: 'running' })
@@ -51,13 +50,11 @@ export async function GET(request: Request) {
       .eq('status', 'pending')
       .select('id')
       .maybeSingle()
-    if (!claim) continue
+    if (!claim) return 0
 
     await resumePendingExecution({
       id: row.id as string,
       automation_id: row.automation_id as string,
-      // account_id is NOT NULL on automation_pending_executions
-      // post-017; the engine uses it for tenant-scoped lookups.
       account_id: row.account_id as string,
       user_id: row.user_id as string,
       contact_id: (row.contact_id as string | null) ?? null,
@@ -67,8 +64,11 @@ export async function GET(request: Request) {
       next_step_position: row.next_step_position as number,
       context: (row.context as AutomationContext) ?? {},
     })
-    processed++
-  }
+    return 1
+  })
+
+  const results = await Promise.allSettled(resumes)
+  const processed = results.filter(r => r.status === 'fulfilled').reduce((s, r) => s + r.value, 0)
 
   return NextResponse.json({ processed })
 }

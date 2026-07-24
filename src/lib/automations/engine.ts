@@ -105,12 +105,13 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     }
     if (!automations || automations.length === 0) return
 
-    for (const automation of automations as Automation[]) {
-      if (!triggerMatches(automation, input.context)) continue
-      try {
-        await executeAutomation(automation, input)
-      } catch (err) {
-        console.error('[automations] execute failed:', automation.id, err)
+    const matched = (automations as Automation[]).filter(a => triggerMatches(a, input.context))
+    const settleResults = await Promise.allSettled(
+      matched.map(automation => executeAutomation(automation, input))
+    )
+    for (let i = 0; i < settleResults.length; i++) {
+      if (settleResults[i].status === 'rejected') {
+        console.error('[automations] execute failed:', matched[i].id, settleResults[i].reason)
       }
     }
   } catch (err) {
