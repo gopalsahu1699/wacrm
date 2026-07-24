@@ -6,27 +6,46 @@ import type { AutomationContext } from '@/lib/automations/engine'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
- * on a schedule (Vercel Cron / external pinger) — requires a shared
- * secret via the `x-cron-secret` header to match
- * `AUTOMATION_CRON_SECRET`.
+ * on a schedule (Vercel Cron / external pinger).
  *
- * The claim step (status = 'running') serves as a simple lock so
- * overlapping invocations don't double-process rows. Best-effort
- * only; expensive SELECT ... FOR UPDATE is avoided in favor of a
- * two-step UPDATE-by-id.
+ * Accepts two auth schemes:
+ *   1. Vercel native cron — Vercel automatically sends:
+ *        Authorization: Bearer <CRON_SECRET>
+ *      where CRON_SECRET is set in your Vercel project env vars.
+ *      This works with Vercel Hobby's 1-cron-per-day limit.
+ *   2. External pinger (cron-job.org, EasyCron, etc.) — send:
+ *        x-cron-secret: <AUTOMATION_CRON_SECRET>
+ *      This is the legacy header used by earlier versions.
+ *
+ * Both secrets are compared with timingSafeEqual to prevent
+ * timing-oracle attacks.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET
-  if (!expected) {
+  // --- Auth: accept Vercel's native Authorization: Bearer OR x-cron-secret ---
+  const cronSecret = process.env.CRON_SECRET ?? ''
+  const legacySecret = process.env.AUTOMATION_CRON_SECRET ?? ''
+
+  if (!cronSecret && !legacySecret) {
     return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
   }
-  const supplied = request.headers.get('x-cron-secret') ?? ''
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
-  if (
-    suppliedBuf.length !== expectedBuf.length ||
-    !timingSafeEqual(suppliedBuf, expectedBuf)
-  ) {
+
+  const authHeader = request.headers.get('authorization') ?? ''
+  const xCronHeader = request.headers.get('x-cron-secret') ?? ''
+
+  // Check Vercel native: "Authorization: Bearer <CRON_SECRET>"
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+  const nativeOk =
+    cronSecret.length > 0 &&
+    bearerToken.length === cronSecret.length &&
+    timingSafeEqual(Buffer.from(bearerToken), Buffer.from(cronSecret))
+
+  // Check legacy custom header
+  const legacyOk =
+    legacySecret.length > 0 &&
+    xCronHeader.length === legacySecret.length &&
+    timingSafeEqual(Buffer.from(xCronHeader), Buffer.from(legacySecret))
+
+  if (!nativeOk && !legacyOk) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

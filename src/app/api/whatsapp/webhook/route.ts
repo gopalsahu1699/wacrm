@@ -15,9 +15,8 @@ import {
 } from '@/lib/whatsapp/template-webhook'
 
 // The `after()` callback in POST runs within this route's max duration.
-// Inbound processing can fan out to per-media Meta verification calls, so
-// give it headroom beyond the platform default (Vercel clamps this to the
-// plan's ceiling). Tune as needed.
+// On VPS/Node.js this export is ignored (no serverless limits). On Vercel
+// Pro/Enterprise raise to 60 to give media-download fan-out headroom.
 export const maxDuration = 60
 
 // Lazy-initialized to avoid build-time crash when env vars are missing

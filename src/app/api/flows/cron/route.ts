@@ -27,21 +27,31 @@ import { resolveFallbackPolicy } from '@/lib/flows/fallback'
  * tenants.
  */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET
-  if (!expected) {
+  // Accept Vercel's native cron auth (Authorization: Bearer <CRON_SECRET>)
+  // OR the legacy custom header (x-cron-secret: <AUTOMATION_CRON_SECRET>).
+  // Both use timingSafeEqual to prevent timing-oracle attacks.
+  const cronSecret = process.env.CRON_SECRET ?? ''
+  const legacySecret = process.env.AUTOMATION_CRON_SECRET ?? ''
+
+  if (!cronSecret && !legacySecret) {
     return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
   }
-  // Constant-time compare so an attacker who can hit the endpoint
-  // can't recover the secret byte-by-byte from response-time deltas.
-  // Length pre-check is required by timingSafeEqual (throws otherwise)
-  // and leaks only the length itself, which isn't sensitive.
-  const supplied = request.headers.get('x-cron-secret') ?? ''
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
-  if (
-    suppliedBuf.length !== expectedBuf.length ||
-    !timingSafeEqual(suppliedBuf, expectedBuf)
-  ) {
+
+  const authHeader = request.headers.get('authorization') ?? ''
+  const xCronHeader = request.headers.get('x-cron-secret') ?? ''
+
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+  const nativeOk =
+    cronSecret.length > 0 &&
+    bearerToken.length === cronSecret.length &&
+    timingSafeEqual(Buffer.from(bearerToken), Buffer.from(cronSecret))
+
+  const legacyOk =
+    legacySecret.length > 0 &&
+    xCronHeader.length === legacySecret.length &&
+    timingSafeEqual(Buffer.from(xCronHeader), Buffer.from(legacySecret))
+
+  if (!nativeOk && !legacyOk) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
