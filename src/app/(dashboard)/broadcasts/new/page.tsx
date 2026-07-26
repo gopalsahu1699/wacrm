@@ -11,14 +11,14 @@ import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audien
 import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
-import { Check } from 'lucide-react';
+import { Check, FileText, Users, MessageSquare, Send } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 const steps = [
-  { label: 'template', key: 'template' },
-  { label: 'audience', key: 'audience' },
-  { label: 'personalize', key: 'personalize' },
-  { label: 'send', key: 'send' },
+  { label: 'template', key: 'template', icon: FileText, description: 'Choose a template' },
+  { label: 'audience', key: 'audience', icon: Users, description: 'Select recipients' },
+  { label: 'personalize', key: 'personalize', icon: MessageSquare, description: 'Map variables' },
+  { label: 'send', key: 'send', icon: Send, description: 'Review & send' },
 ] as const;
 
 export default function NewBroadcastPage() {
@@ -65,23 +65,12 @@ export default function NewBroadcastPage() {
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {
-      // Previously swallowed with console.error — the wizard would
-      // just no-op, leaving the user confused. Surface the reason.
       const message = err instanceof Error ? err.message : 'Broadcast failed';
       console.error('Broadcast failed:', err);
       toast.error(message);
     }
   }
 
-  /**
-   * Writes a draft broadcast row — no recipients, no sending. The user
-   * can revisit it via the list page to finish the flow later. We
-   * don't persist the in-progress audience/variable config here
-   * because the current schema doesn't carry it past `audience_filter`
-   * and `template_variables`; those are enough for the user to
-   * recognize the draft but not to exactly round-trip into the wizard.
-   * A full resume-draft UX is a future polish.
-   */
   async function handleSaveDraft() {
     if (!template || !name.trim()) {
       toast.error(t('toastGiveName'));
@@ -130,8 +119,7 @@ export default function NewBroadcastPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      {/* Header */}
+    <div className="mx-auto max-w-5xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -139,95 +127,102 @@ export default function NewBroadcastPage() {
         </p>
       </div>
 
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between">
-        {steps.map((step, index) => {
-          const isActive = index === currentStep;
-          const isCompleted = index < currentStep;
+      <div className="flex items-start gap-6">
+        <div className="flex-1 min-w-0 space-y-6">
+          <div className="flex items-center gap-0">
+            {steps.map((step, index) => {
+              const isActive = index === currentStep;
+              const isCompleted = index < currentStep;
+              const Icon = step.icon;
 
-          return (
-            <div key={step.key} className="flex flex-1 items-center">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-all ${
-                    isCompleted
-                      ? 'bg-primary text-primary-foreground'
-                      : isActive
-                        ? 'border-2 border-primary bg-primary/10 text-primary'
-                        : 'border border-border bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
+              return (
+                <div key={step.key} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div
+                      className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-medium transition-all ${
+                        isCompleted
+                          ? 'bg-primary text-primary-foreground'
+                          : isActive
+                            ? 'border-2 border-primary bg-primary/10 text-primary'
+                            : 'border border-border bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Icon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <span
+                      className={`text-[11px] font-medium text-center leading-tight max-w-16 ${
+                        isActive ? 'text-foreground' : isCompleted ? 'text-primary' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {t(`steps.${step.label}`)}
+                    </span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div
+                      className={`flex-1 h-px mx-2 mt-[-1.5rem] ${
+                        index < currentStep ? 'bg-primary' : 'bg-border'
+                      }`}
+                    />
+                  )}
                 </div>
-                <span
-                  className={`hidden text-sm font-medium sm:block ${
-                    isActive ? 'text-foreground' : isCompleted ? 'text-primary' : 'text-muted-foreground'
-                  }`}
-                >
-                  {t(`steps.${step.label}`)}
-                </span>
-              </div>
-              {index < steps.length - 1 && (
-                <div
-                  className={`mx-3 h-px flex-1 ${
-                    index < currentStep ? 'bg-primary' : 'bg-muted'
-                  }`}
+              );
+            })}
+          </div>
+
+          <div className="relative min-h-[400px]">
+            <div
+              className="transition-all duration-300 ease-in-out"
+              style={{
+                opacity: isProcessing ? 0.6 : 1,
+                pointerEvents: isProcessing ? 'none' : 'auto',
+              }}
+            >
+              {currentStep === 0 && (
+                <Step1ChooseTemplate
+                  selectedTemplate={template}
+                  onSelect={setTemplate}
+                  onNext={() => setCurrentStep(1)}
+                  onBack={() => router.push('/broadcasts')}
+                />
+              )}
+              {currentStep === 1 && (
+                <Step2SelectAudience
+                  audience={audience}
+                  onUpdate={setAudience}
+                  onNext={() => setCurrentStep(2)}
+                  onBack={() => setCurrentStep(0)}
+                />
+              )}
+              {currentStep === 2 && template && (
+                <Step3Personalize
+                  template={template}
+                  variables={variables}
+                  onUpdate={setVariables}
+                  headerMediaUrl={headerMediaUrl}
+                  onHeaderMediaUrlChange={setHeaderMediaUrl}
+                  onNext={() => setCurrentStep(3)}
+                  onBack={() => setCurrentStep(1)}
+                />
+              )}
+              {currentStep === 3 && template && (
+                <Step4ScheduleSend
+                  name={name}
+                  onNameChange={setName}
+                  template={template}
+                  audience={audience}
+                  onSend={handleSend}
+                  onSaveDraft={handleSaveDraft}
+                  onBack={() => setCurrentStep(2)}
+                  isProcessing={isProcessing}
+                  progress={progress}
                 />
               )}
             </div>
-          );
-        })}
-      </div>
-
-      {/* Step Content */}
-      <div className="relative min-h-[400px]">
-        <div
-          className="transition-all duration-300 ease-in-out"
-          style={{
-            opacity: isProcessing ? 0.6 : 1,
-            pointerEvents: isProcessing ? 'none' : 'auto',
-          }}
-        >
-          {currentStep === 0 && (
-            <Step1ChooseTemplate
-              selectedTemplate={template}
-              onSelect={setTemplate}
-              onNext={() => setCurrentStep(1)}
-              onBack={() => router.push('/broadcasts')}
-            />
-          )}
-          {currentStep === 1 && (
-            <Step2SelectAudience
-              audience={audience}
-              onUpdate={setAudience}
-              onNext={() => setCurrentStep(2)}
-              onBack={() => setCurrentStep(0)}
-            />
-          )}
-          {currentStep === 2 && template && (
-            <Step3Personalize
-              template={template}
-              variables={variables}
-              onUpdate={setVariables}
-              headerMediaUrl={headerMediaUrl}
-              onHeaderMediaUrlChange={setHeaderMediaUrl}
-              onNext={() => setCurrentStep(3)}
-              onBack={() => setCurrentStep(1)}
-            />
-          )}
-          {currentStep === 3 && template && (
-            <Step4ScheduleSend
-              name={name}
-              onNameChange={setName}
-              template={template}
-              audience={audience}
-              onSend={handleSend}
-              onSaveDraft={handleSaveDraft}
-              onBack={() => setCurrentStep(2)}
-              isProcessing={isProcessing}
-              progress={progress}
-            />
-          )}
+          </div>
         </div>
       </div>
     </div>

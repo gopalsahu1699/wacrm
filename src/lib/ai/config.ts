@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import type { AiConfig } from './types'
+import type { AiConfig, AiProvider } from './types'
 
 interface AiConfigRow {
-  provider: 'openai' | 'anthropic'
+  provider: string
   model: string
   api_key: string
   system_prompt: string | null
@@ -70,7 +70,7 @@ export async function loadAiConfig(
   }
 
   return {
-    provider: row.provider,
+    provider: row.provider as AiProvider,
     model: row.model,
     apiKey: decrypt(row.api_key),
     systemPrompt: row.system_prompt,

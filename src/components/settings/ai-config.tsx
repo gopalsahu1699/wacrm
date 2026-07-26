@@ -41,11 +41,21 @@ const HANDOFF_QUEUE = '__queue__';
 const PROVIDER_LABEL: Record<AiProvider, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic (Claude)',
+  google: 'Google (Gemini)',
+  groq: 'Groq',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
+  openrouter: 'OpenRouter',
 };
 
 const KEY_PLACEHOLDER: Record<AiProvider, string> = {
   openai: 'sk-...',
   anthropic: 'sk-ant-...',
+  google: 'AIza...',
+  groq: 'gsk_...',
+  deepseek: 'sk-...',
+  mistral: '...',
+  openrouter: 'sk-or-...',
 };
 
 export function AiConfig() {
@@ -128,11 +138,9 @@ export function AiConfig() {
   // typed a custom model.
   const handleProviderChange = (next: AiProvider) => {
     setProvider(next);
-    const isDefaultModel =
-      model === AI_PROVIDER_DEFAULT_MODEL.openai ||
-      model === AI_PROVIDER_DEFAULT_MODEL.anthropic ||
-      model.trim() === '';
-    if (isDefaultModel) setModel(AI_PROVIDER_DEFAULT_MODEL[next]);
+    const defaults = AI_PROVIDER_DEFAULT_MODEL;
+    const isDefaultModel = Object.values(defaults).includes(model) || model.trim() === '';
+    if (isDefaultModel) setModel(defaults[next]);
   };
 
   const keyPayload = () => (keyEdited ? apiKey.trim() : undefined);
@@ -281,6 +289,11 @@ export function AiConfig() {
                     <SelectItem value="anthropic">
                       {PROVIDER_LABEL.anthropic}
                     </SelectItem>
+                    <SelectItem value="google">{PROVIDER_LABEL.google}</SelectItem>
+                    <SelectItem value="groq">{PROVIDER_LABEL.groq}</SelectItem>
+                    <SelectItem value="deepseek">{PROVIDER_LABEL.deepseek}</SelectItem>
+                    <SelectItem value="mistral">{PROVIDER_LABEL.mistral}</SelectItem>
+                    <SelectItem value="openrouter">{PROVIDER_LABEL.openrouter}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -368,14 +381,12 @@ export function AiConfig() {
                     setEmbeddingsKeyEdited(true);
                   }
                 }}
-                placeholder="sk-... (OpenAI)"
+                placeholder="sk-... (OpenAI-compatible)"
                 disabled={disabled}
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                {t('embeddingsHint', {
-                  sameKeyText: provider === 'openai' ? t('sameKeyText') : '',
-                })}
+                {t('embeddingsHint', { sameKeyText: '' })}
               </p>
             </div>
           </CardContent>

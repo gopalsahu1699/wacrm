@@ -78,8 +78,12 @@ export async function POST(request: Request) {
     if (!body || typeof body !== 'object') return bad('Invalid request body')
 
     const provider = body.provider as AiProvider
-    if (provider !== 'openai' && provider !== 'anthropic') {
-      return bad('provider must be "openai" or "anthropic"')
+    const VALID_PROVIDERS = [
+      'openai', 'anthropic', 'google', 'groq',
+      'deepseek', 'mistral', 'openrouter',
+    ] as const satisfies readonly string[]
+    if (!(VALID_PROVIDERS as readonly string[]).includes(provider)) {
+      return bad(`provider must be one of: ${VALID_PROVIDERS.join(', ')}`)
     }
     const model = typeof body.model === 'string' ? body.model.trim() : ''
     if (!model) return bad('model is required')
