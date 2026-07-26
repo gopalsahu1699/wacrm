@@ -153,19 +153,27 @@ function InboxPageInner() {
       const fetched = normalizeConversation(data);
       setConversations((prev) => {
         const existing = prev.find((c) => c.id === fetched.id);
+        let updated: Conversation[];
         if (existing) {
           // Already in state — keep its fields (a realtime UPDATE may
           // have landed while the fetch was in flight and patched
           // last_message_text / unread_count to fresher values than
           // the row we just read). Only backfill `contact`, which the
           // realtime payloads never carry.
-          return prev.map((c) =>
+          updated = prev.map((c) =>
             c.id === fetched.id
               ? { ...c, contact: c.contact ?? fetched.contact }
               : c,
           );
+        } else {
+          updated = [fetched, ...prev];
         }
-        return [fetched, ...prev];
+        // Re-sort by last_message_at so the conversation list stays ordered
+        return [...updated].sort((a, b) => {
+          const aTime = a.last_message_at ?? a.created_at;
+          const bTime = b.last_message_at ?? b.created_at;
+          return new Date(bTime).getTime() - new Date(aTime).getTime();
+        });
       });
     } finally {
       hydratingConvIdsRef.current.delete(convId);
@@ -240,8 +248,8 @@ function InboxPageInner() {
         // knownConvIdsRef for why a closure flag inside the updater would
         // always read false here.
         if (knownConvIdsRef.current.has(newMsg.conversation_id)) {
-          setConversations((prev) =>
-            prev.map((c) =>
+          setConversations((prev) => {
+            const updated = prev.map((c) =>
               c.id === newMsg.conversation_id
                 ? {
                     ...c,
@@ -253,8 +261,14 @@ function InboxPageInner() {
                         : c.unread_count + 1,
                   }
                 : c,
-            ),
-          );
+            );
+            // Re-sort so the conversation with the new message moves to the top
+            return [...updated].sort((a, b) => {
+              const aTime = a.last_message_at ?? a.created_at;
+              const bTime = b.last_message_at ?? b.created_at;
+              return new Date(bTime).getTime() - new Date(aTime).getTime();
+            });
+          });
         } else {
           // First time we're seeing this conv: the conv-INSERT event
           // hasn't landed yet, or was missed. Hydrate from the DB so
@@ -307,8 +321,8 @@ function InboxPageInner() {
           // back on for the ~100ms it takes for the reset effect's server
           // UPDATE to round-trip. Non-active convs take the value as-is.
           const isActive = activeConversation?.id === conv.id;
-          setConversations((prev) =>
-            prev.map((c) =>
+          setConversations((prev) => {
+            const updated = prev.map((c) =>
               c.id === conv.id
                 ? {
                     ...c,
@@ -316,8 +330,14 @@ function InboxPageInner() {
                     unread_count: isActive ? 0 : conv.unread_count,
                   }
                 : c,
-            ),
-          );
+            );
+            // Re-sort in case last_message_at changed
+            return [...updated].sort((a, b) => {
+              const aTime = a.last_message_at ?? a.created_at;
+              const bTime = b.last_message_at ?? b.created_at;
+              return new Date(bTime).getTime() - new Date(aTime).getTime();
+            });
+          });
         } else {
           // UPDATE arrived before the INSERT (or after a missed INSERT)
           // — fetch the row so it surfaces with its contact joined. The

@@ -665,6 +665,10 @@ async function processMessage(
     .eq('sender_type', 'customer')
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
+  // Use Meta's timestamp (seconds since epoch) for the message created_at
+  // so the DB row matches what the platform recorded, not our server wall-clock.
+  const messageTimestamp = new Date(parseInt(message.timestamp) * 1000).toISOString()
+
   const { error: msgError } = await supabaseAdmin().from('messages').insert({
     conversation_id: conversation.id,
     sender_type: 'customer',
@@ -673,7 +677,7 @@ async function processMessage(
     media_url: mediaUrl,
     message_id: message.id,
     status: 'delivered',
-    created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+    created_at: messageTimestamp,
     reply_to_message_id: replyToInternalId,
     // Only populated for content_type='interactive'. Migration 010 added
     // the column; null for every other content_type so existing inserts
@@ -686,12 +690,14 @@ async function processMessage(
     return
   }
 
-  // Update conversation
+  // Update conversation — use the same Meta timestamp so the sort column
+  // (last_message_at) matches the message's created_at exactly.  The old
+  // `new Date()` could drift from Meta's clock and cause stale sorting.
   const { error: convError } = await supabaseAdmin()
     .from('conversations')
     .update({
       last_message_text: contentText || `[${message.type}]`,
-      last_message_at: new Date().toISOString(),
+      last_message_at: messageTimestamp,
       unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
     })

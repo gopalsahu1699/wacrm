@@ -480,14 +480,18 @@ export async function sendMessageToConversation(
       ? interactivePayloadPreviewText(interactivePayload!)
       : contentText || `[${messageType}]`;
 
-  await db
+  const { error: convUpdateErr } = await db
     .from('conversations')
     .update({
       last_message_text: lastMessageText,
-      last_message_at: new Date().toISOString(),
+      last_message_at: messageRecord.created_at,
       updated_at: new Date().toISOString(),
     })
     .eq('id', conversationId);
+
+  if (convUpdateErr) {
+    console.error('[send-message] failed to update conversation preview:', convUpdateErr.message);
+  }
 
   // Pause any active Flow run for this contact — the agent stepping in
   // is the strongest "yield, human is here" signal. Best-effort.

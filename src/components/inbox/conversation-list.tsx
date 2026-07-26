@@ -37,9 +37,15 @@ interface ConversationListProps {
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-primary",
+  open: "bg-emerald-500",
   pending: "bg-amber-500",
-  closed: "bg-muted-foreground",
+  closed: "bg-slate-400",
+};
+
+const STATUS_LABELS: Record<ConversationStatus, string> = {
+  open: "Open",
+  pending: "Pending",
+  closed: "Closed",
 };
 
 
@@ -477,26 +483,30 @@ function ConversationItem({
           <span className="truncate text-sm font-medium text-foreground">
             {displayName}
           </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
+          <div className="flex shrink-0 flex-col items-end gap-0.5">
+            <span className="text-[10px] text-muted-foreground">{timeAgo}</span>
+            <span className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  STATUS_COLORS[conversation.status]
+                )}
+              />
+              <span className="text-[10px] text-muted-foreground">
+                {STATUS_LABELS[conversation.status]}
+              </span>
+            </span>
+          </div>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-muted-foreground">
             {conversation.last_message_text || t("noMessagesYet")}
           </p>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                {conversation.unread_count}
-              </span>
-            )}
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                STATUS_COLORS[conversation.status]
-              )}
-              title={conversation.status}
-            />
-          </div>
+          {conversation.unread_count > 0 && (
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+              {conversation.unread_count}
+            </span>
+          )}
         </div>
       </div>
     </button>
