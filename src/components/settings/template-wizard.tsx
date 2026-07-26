@@ -204,10 +204,10 @@ export function TemplateWizard({
 
   function buildSubmitPayload() {
     const sample_values: TemplateSampleValues = {};
-    if (form.body_samples.some((v) => v.trim())) {
+    if (bodyVarCount > 0) {
       sample_values.body = form.body_samples.map((v) => v.trim());
     }
-    if (form.header_format === 'text' && form.header_sample.trim()) {
+    if (headerVarCount > 0) {
       sample_values.header = [form.header_sample.trim()];
     }
     return {
