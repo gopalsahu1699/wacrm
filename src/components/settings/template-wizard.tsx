@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
   ChevronRight,
   Check,
-  Upload,
   Loader2,
   X,
   Plus,
@@ -26,10 +25,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { useTranslations } from 'next-intl';
 import { TemplatePreview } from './template-preview';
-import {
-  uploadAccountMedia,
-  MEDIA_MAX_BYTES_BY_KIND,
-} from '@/lib/storage/upload-media';
+import { TemplateImagePicker } from './template-image-picker';
 import {
   extractVariableIndices,
   TEMPLATE_LIMITS,
@@ -116,8 +112,6 @@ export function TemplateWizard({
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<WizardFormData>({ ...emptyForm, ...initialData });
   const [submitting, setSubmitting] = useState(false);
-  const [uploadingHeader, setUploadingHeader] = useState(false);
-  const headerFileRef = useRef<HTMLInputElement>(null);
 
   const bodyVarCount = useMemo(
     () => extractVariableIndices(form.body_text).length,
@@ -264,29 +258,6 @@ export function TemplateWizard({
       toast.error(err instanceof Error ? err.message : t('toastSubmitFailed'));
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleHeaderImageFile(file: File) {
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      toast.error(t('toastInvalidImage'));
-      return;
-    }
-    if (file.size > MEDIA_MAX_BYTES_BY_KIND.image) {
-      toast.error(
-        t('toastImageTooLarge', { size: (file.size / 1024 / 1024).toFixed(1) }),
-      );
-      return;
-    }
-    setUploadingHeader(true);
-    try {
-      const { publicUrl } = await uploadAccountMedia('chat-media', file);
-      updateForm({ header_media_url: publicUrl });
-      toast.success(t('toastUploadSuccess'));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('toastUploadFailed'));
-    } finally {
-      setUploadingHeader(false);
     }
   }
 
@@ -504,51 +475,36 @@ export function TemplateWizard({
         {headerNeedsMedia && (
           <div className="space-y-3">
             {form.header_format === 'image' && (
-              <div className="flex items-center gap-2">
-                <input
-                  ref={headerFileRef}
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleHeaderImageFile(f);
-                    e.target.value = '';
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={uploadingHeader}
-                  onClick={() => headerFileRef.current?.click()}
-                >
-                  {uploadingHeader ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="h-3.5 w-3.5" />
-                  )}
-                  Upload Image
-                </Button>
-                <span className="text-xs text-muted-foreground">JPEG or PNG, max 5MB</span>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Media URL</Label>
-              <Input
-                placeholder={`https://example.com/sample.${form.header_format === 'image' ? 'jpg' : form.header_format === 'video' ? 'mp4' : 'pdf'}`}
+              <TemplateImagePicker
                 value={form.header_media_url}
-                onChange={(e) => updateForm({ header_media_url: e.target.value })}
-                className="bg-muted border-border text-foreground"
+                onChange={(url) => updateForm({ header_media_url: url })}
               />
-            </div>
-            {form.header_format === 'image' && form.header_media_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={form.header_media_url}
-                alt="Header"
-                className="max-h-28 rounded-md border border-border object-contain"
-              />
+            )}
+            {form.header_format !== 'image' && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Media URL</Label>
+                  <Input
+                    placeholder={`https://example.com/sample.${form.header_format === 'video' ? 'mp4' : 'pdf'}`}
+                    value={form.header_media_url}
+                    onChange={(e) => updateForm({ header_media_url: e.target.value })}
+                    className="bg-muted border-border text-foreground"
+                  />
+                </div>
+                {form.header_media_url && (
+                  form.header_format === 'video' ? (
+                    <div className="rounded-lg bg-muted flex items-center gap-2 p-3 text-sm text-muted-foreground border border-border">
+                      <span>🎬</span>
+                      <span className="truncate text-xs">Sample video</span>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg bg-muted flex items-center gap-2 p-3 text-sm text-muted-foreground border border-border">
+                      <span>📄</span>
+                      <span className="truncate text-xs">Sample document</span>
+                    </div>
+                  )
+                )}
+              </>
             )}
           </div>
         )}
